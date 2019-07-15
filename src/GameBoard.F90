@@ -23,13 +23,19 @@ CONTAINS
     CLASS(game_board_type), INTENT(OUT) :: this_board
 
     INTEGER(ikind_large), PARAMETER :: sizex = 10000, sizey = 10000
+    INTEGER(ikind_large) :: ix, iy
     REAL(rkind), DIMENSION(:,:), ALLOCATABLE :: cell_activity
 
     ALLOCATE(this_board%state_board(sizex,sizey),                               &
       this_board%neighbor_counts(sizex,sizey), cell_activity(sizex,sizey))
-    CALL RANDOM_NUMBER(cell_activity)
-    this_board%state_board = NINT(cell_activity)
-
+!$omp parallel do collapse(2) shared(this_board, cell_activity)
+    DO iy = 1, sizey
+      DO ix = 1, sizex
+        CALL RANDOM_NUMBER(cell_activity(ix,iy))
+        this_board%state_board(ix,iy) = NINT(cell_activity(ix,iy))
+      ENDDO
+    ENDDO
+!$omp end parallel do
 
   END SUBROUTINE initialize
 
