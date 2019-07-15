@@ -42,13 +42,11 @@ CONTAINS
     nx = SIZE(this_board%neighbor_counts, 1)
     ny = SIZE(this_board%neighbor_counts, 2)
     count = 0
-!$omp parallel do reduction(+:count) shared(this_board)
+!$omp parallel do collapse(2) reduction(+:count) shared(this_board)
     DO iy = 1, ny
-  !$omp simd
       DO ix = 1, nx
         count = count + this_board%state_board(ix,iy)
       ENDDO
-  !$omp end simd
     ENDDO
 !$omp end parallel do
 
@@ -118,10 +116,19 @@ CONTAINS
 
     CLASS(game_board_type), INTENT(INOUT) :: this_board
 
-!$omp parallel workshare shared(this_board)
-    this_board%state_board = new_state(this_board%neighbor_counts,              &
-      this_board%state_board)
-!$omp end parallel workshare
+    INTEGER(ikind_large) :: nx, ny, ix, iy
+
+    nx = SIZE(this_board%neighbor_counts, 1)
+    ny = SIZE(this_board%neighbor_counts, 2)
+
+!$omp parallel do collapse(2) shared(this_board)
+    DO iy = 1, ny
+      DO ix = 1, nx
+        this_board%state_board(ix,iy) = new_state(                              &
+          this_board%neighbor_counts(ix,iy), this_board%state_board(ix,iy))
+      ENDDO
+    ENDDO
+!$omp end parallel do
 
   END SUBROUTINE update_state
 
