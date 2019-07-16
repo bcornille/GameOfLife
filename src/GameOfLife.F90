@@ -9,6 +9,11 @@ PROGRAM game_of_life
   TYPE(game_board_type) :: game_board
   INTEGER(ikind_large) :: population, step
 
+#if USE_MPI
+  INTEGER :: mpi_error
+  MPI_Init(mpi_error)
+#endif
+
   !Start by initializing the game board.
   CALL game_board%initialize()
   population = game_board%count_cells()
@@ -23,5 +28,9 @@ PROGRAM game_of_life
     ! CALL game_board%print_state()
     WRITE(*,*) "Population: ", population
   ENDDO
+
+#if USE_MPI
+  MPI_Finalize(mpi_error)
+#endif
 
 END PROGRAM game_of_life
