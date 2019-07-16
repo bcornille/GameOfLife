@@ -23,7 +23,8 @@ CONTAINS
 
   SUBROUTINE initialize(this_board)
 
-    USE input_mod, ONLY: read_input, cell_pattern, sizex, sizey
+    USE input_mod, ONLY: read_input, cell_pattern, sizex, sizey,                &
+      offsetx, offsety
 
     CLASS(game_board_type), INTENT(OUT) :: this_board
 
@@ -36,50 +37,50 @@ CONTAINS
     this_board%state_board = 0
     SELECT CASE(cell_pattern)
       CASE('block')
-        IF((sizex < 3) .OR. (sizey < 3)) THEN
-          STOP "Grid size too small for cell pattern."
+        IF((sizex < 3 + offsetx) .OR. (sizey < 3 + offsety)) THEN
+          STOP "Grid size too small for cell pattern "//TRIM(cell_pattern)//"."
         ENDIF
-        this_board%state_board(1:3,1:3) = RESHAPE(                              &
-          [[0, 0, 0],                                                           &
-           [0, 1, 1],                                                           &
-           [0, 1, 1]], [3,3])
+        this_board%state_board(1+offsetx:3+offsetx,1+offsety:3+offsety) =       &
+        RESHAPE([[0, 0, 0],                                                     &
+                 [0, 1, 1],                                                     &
+                 [0, 1, 1]], [3,3])
       CASE('blinker')
-        IF((sizex < 4) .OR. (sizey < 4)) THEN
-          STOP "Grid size too small for cell pattern."
+        IF((sizex < 4 + offsetx) .OR. (sizey < 4 + offsety)) THEN
+          STOP "Grid size too small for cell pattern "//TRIM(cell_pattern)//"."
         ENDIF
-        this_board%state_board(1:4,1:4) = RESHAPE(                              &
-          [[0, 0, 0, 0],                                                        &
-           [0, 0, 1, 0],                                                        &
-           [0, 0, 1, 0],                                                        &
-           [0, 0, 1, 0]], [4,4])
+        this_board%state_board(1+offsetx:4+offsetx,1+offsety:4+offsety) =       &
+        RESHAPE([[0, 0, 0, 0],                                                  &
+                 [0, 0, 1, 0],                                                  &
+                 [0, 0, 1, 0],                                                  &
+                 [0, 0, 1, 0]], [4,4])
       CASE('glider')
-        IF((sizex < 5) .OR. (sizey < 5)) THEN
-          STOP "Grid size too small for cell pattern."
+        IF((sizex < 5 + offsetx) .OR. (sizey < 5 + offsety)) THEN
+          STOP "Grid size too small for cell pattern "//TRIM(cell_pattern)//"."
         ENDIF
-        this_board%state_board(1:4,1:4) = RESHAPE(                              &
-          [[0, 0, 0, 0],                                                        &
-           [0, 0, 1, 0],                                                        &
-           [0, 0, 0, 1],                                                        &
-           [0, 1, 1, 1]], [4,4])
+        this_board%state_board(1+offsetx:4+offsetx,1+offsety:4+offsety) =       &
+        RESHAPE([[0, 0, 0, 0],                                                  &
+                 [0, 0, 1, 0],                                                  &
+                 [0, 0, 0, 1],                                                  &
+                 [0, 1, 1, 1]], [4,4])
       CASE('R-pentomino')
-        IF((sizex < 5) .OR. (sizey < 5)) THEN
-          STOP "Grid size too small for cell pattern."
+        IF((sizex < 5 + offsetx) .OR. (sizey < 5 + offsety)) THEN
+          STOP "Grid size too small for cell pattern "//TRIM(cell_pattern)//"."
         ENDIF
-        this_board%state_board(1:4,1:4) = RESHAPE(                              &
-          [[0, 0, 0, 0],                                                        &
-           [0, 0, 1, 1],                                                        &
-           [0, 1, 1, 0],                                                        &
-           [0, 0, 1, 0]], [4,4])
+        this_board%state_board(1+offsetx:4+offsetx,1+offsety:4+offsety) =       &
+        RESHAPE([[0, 0, 0, 0],                                                  &
+                 [0, 0, 1, 1],                                                  &
+                 [0, 1, 1, 0],                                                  &
+                 [0, 0, 1, 0]], [4,4])
 
       CASE('die-hard')
-        IF((sizex < 10) .OR. (sizey < 5)) THEN
-          STOP "Grid size too small for cell pattern."
+        IF((sizex < 10 + offsetx) .OR. (sizey < 5 + offsety)) THEN
+          STOP "Grid size too small for cell pattern "//TRIM(cell_pattern)//"."
         ENDIF
-        this_board%state_board(1:9,1:4) = RESHAPE(                              &
-          [[0, 0, 0, 0, 0, 0, 0, 0, 0],                                                        &
-           [0, 0, 0, 0, 0, 0, 0, 1, 0],                                                        &
-           [0, 1, 1, 0, 0, 0, 0, 0, 0],                                                        &
-           [0, 0, 1, 0, 0, 0, 1, 1, 1]], [9,4])
+        this_board%state_board(1+offsetx:9+offsetx,1+offsety:4+offsety) =        &
+        RESHAPE([[0, 0, 0, 0, 0, 0, 0, 0, 0],                                   &
+                 [0, 0, 0, 0, 0, 0, 0, 1, 0],                                   &
+                 [0, 1, 1, 0, 0, 0, 0, 0, 0],                                   &
+                 [0, 0, 1, 0, 0, 0, 1, 1, 1]], [9,4])
       CASE('random')
         ALLOCATE(cell_activity(sizex,sizey))
 !$omp parallel do collapse(2) shared(this_board, cell_activity)
@@ -91,7 +92,7 @@ CONTAINS
         ENDDO
 !$omp end parallel do
       CASE DEFAULT
-        STOP "Cell pattern not recognized."
+        STOP "Cell pattern "//TRIM(cell_pattern)//" not recognized."
     END SELECT
 
   END SUBROUTINE initialize
@@ -182,6 +183,8 @@ CONTAINS
 
   SUBROUTINE update_halo(this_board)
 
+    USE input_mod, ONLY: boundary
+
     CLASS(game_board_type), INTENT(INOUT) :: this_board
 
     INTEGER(ikind_large) :: nx, ny
@@ -189,32 +192,38 @@ CONTAINS
     nx = SIZE(this_board%state_board, 1)
     ny = SIZE(this_board%state_board, 2)
 
+    SELECT CASE(boundary)
+      CASE ('periodic')
 !$omp parallel shared(this_board)
   !$omp single
-    this_board%state_board(1,1) = this_board%state_board(nx-1,ny-1)
+        this_board%state_board(1,1) = this_board%state_board(nx-1,ny-1)
   !$omp end single nowait
   !$omp single
-    this_board%state_board(2:nx-1,1) = this_board%state_board(2:nx-1,ny-1)
+        this_board%state_board(2:nx-1,1) = this_board%state_board(2:nx-1,ny-1)
   !$omp end single nowait
   !$omp single
-    this_board%state_board(nx,1) = this_board%state_board(2,ny-1)
+        this_board%state_board(nx,1) = this_board%state_board(2,ny-1)
   !$omp end single nowait
   !$omp single
-    this_board%state_board(1,2:ny-1) = this_board%state_board(nx-1,2:ny-1)
+        this_board%state_board(1,2:ny-1) = this_board%state_board(nx-1,2:ny-1)
   !$omp end single nowait
   !$omp single
-    this_board%state_board(nx,2:ny-1) = this_board%state_board(2,2:ny-1)
+        this_board%state_board(nx,2:ny-1) = this_board%state_board(2,2:ny-1)
   !$omp end single nowait
   !$omp single
-    this_board%state_board(1,ny) = this_board%state_board(nx-1,2)
+        this_board%state_board(1,ny) = this_board%state_board(nx-1,2)
   !$omp end single nowait
   !$omp single
-    this_board%state_board(2:nx-1,ny) = this_board%state_board(2:nx-1,2)
+        this_board%state_board(2:nx-1,ny) = this_board%state_board(2:nx-1,2)
   !$omp end single nowait
   !$omp single
-    this_board%state_board(nx,ny) = this_board%state_board(2,2)
+        this_board%state_board(nx,ny) = this_board%state_board(2,2)
   !$omp end single nowait
 !$omp end parallel
+      CASE('dead')
+      CASE DEFAULT
+        STOP "Boundary condition "//trim(boundary)//" not implemented."
+    END SELECT
 
   END SUBROUTINE update_halo
 
