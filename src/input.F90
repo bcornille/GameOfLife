@@ -7,9 +7,9 @@ MODULE input_mod
   PUBLIC :: read_input, cell_pattern, sizex, sizey, nsteps
 
   CHARACTER(len=32) :: input_file_name = 'game_grid.nml'
-  CHARACTER(len=32) :: cell_pattern = 'block'
+  CHARACTER(len=32) :: cell_pattern = 'block', boundary = 'periodic'
   INTEGER(ikind_large) :: sizex = 3, sizey = 3, nsteps=3
-  NAMELIST /starting_grid/ sizex, sizey, cell_pattern, nsteps
+  NAMELIST /starting_grid/ sizex, sizey, cell_pattern, nsteps, boundary
 
 CONTAINS
 

@@ -15,6 +15,7 @@ MODULE game_board_mod
     PROCEDURE, PASS(this_board) :: count_cells
     PROCEDURE, PASS(this_board) :: accumulate_neighbors
     PROCEDURE, PASS(this_board) :: update_state
+    PROCEDURE, PASS(this_board), PRIVATE :: update_halo
     PROCEDURE, PASS(this_board) :: print_state
   END TYPE
 
@@ -30,7 +31,7 @@ CONTAINS
     REAL(rkind), DIMENSION(:,:), ALLOCATABLE :: cell_activity
 
     CALL read_input()
-    ALLOCATE(this_board%state_board(sizex,sizey),                           &
+    ALLOCATE(this_board%state_board(sizex+2,sizey+2),                           &
           this_board%neighbor_counts(sizex,sizey))
     this_board%state_board = 0
     SELECT CASE(cell_pattern)
@@ -82,10 +83,10 @@ CONTAINS
       CASE('random')
         ALLOCATE(cell_activity(sizex,sizey))
 !$omp parallel do collapse(2) shared(this_board, cell_activity)
-        DO iy = 1, sizey
-          DO ix = 1, sizex
-            CALL RANDOM_NUMBER(cell_activity(ix,iy))
-            this_board%state_board(ix,iy) = NINT(cell_activity(ix,iy))
+        DO iy = 2, sizey-1
+          DO ix = 2, sizex-1
+            CALL RANDOM_NUMBER(cell_activity(ix-1,iy-1))
+            this_board%state_board(ix,iy) = NINT(cell_activity(ix-1,iy-1))
           ENDDO
         ENDDO
 !$omp end parallel do
@@ -101,12 +102,12 @@ CONTAINS
 
     INTEGER(ikind_large) :: nx, ny, ix, iy
 
-    nx = SIZE(this_board%neighbor_counts, 1)
-    ny = SIZE(this_board%neighbor_counts, 2)
+    nx = SIZE(this_board%state_board, 1)
+    ny = SIZE(this_board%state_board, 2)
     count = 0
 !$omp parallel do collapse(2) reduction(+:count) shared(this_board)
-    DO iy = 1, ny
-      DO ix = 1, nx
+    DO iy = 2, ny-1
+      DO ix = 2, nx-1
         count = count + this_board%state_board(ix,iy)
       ENDDO
     ENDDO
@@ -120,67 +121,19 @@ CONTAINS
 
     INTEGER(ikind_large) :: nx, ny, ix, iy
 
-    nx = SIZE(this_board%neighbor_counts, 1)
-    ny = SIZE(this_board%neighbor_counts, 2)
+    nx = SIZE(this_board%state_board, 1)
+    ny = SIZE(this_board%state_board, 2)
     ASSOCIATE (state => this_board%state_board)
-!$omp parallel shared(this_board)
-  !$omp single
-      this_board%neighbor_counts(1,1) =                                         &
-            state(nx,ny) + state(1,ny) + state(2,ny)                            &
-          + state(nx,1)                + state(2,1)                             &
-          + state(nx,2)  + state(1,2)  + state(2,2)
-    !$omp simd
-      DO ix = 2, nx-1
-        this_board%neighbor_counts(ix, 1) =                                     &
-            state(ix-1,ny) + state(ix,ny) + state(ix+1,ny)                      &
-          + state(ix-1,1)                 + state(ix+1,1)                       &
-          + state(ix-1,2)  + state(ix,2)  + state(ix+1,2)
-      ENDDO
-    !$omp end simd
-      this_board%neighbor_counts(nx,1) =                                        &
-            state(nx-1,ny) + state(nx,ny) + state(1,ny)                         &
-          + state(nx-1,1)                 + state(1,1)                          &
-          + state(nx-1,2)  + state(nx,2)  + state(1,2)
-  !$omp end single nowait
-  !$omp do
+!$omp parallel do collapse(2) shared(this_board)
       DO iy = 2, ny-1
-        this_board%neighbor_counts(1,iy) =                                      &
-            state(nx,iy-1) + state(1,iy-1) + state(2,iy-1)                      &
-          + state(nx,iy)                   + state(2,iy)                        &
-          + state(nx,iy+1) + state(1,iy+1) + state(2,iy+1)
-    !$omp simd
         DO ix = 2, nx-1
-          this_board%neighbor_counts(ix,iy) =                                   &
+          this_board%neighbor_counts(ix-1,iy-1) =                                   &
             state(ix-1,iy-1) + state(ix,iy-1) + state(ix+1,iy-1)                &
           + state(ix-1,iy)                    + state(ix+1,iy)                  &
           + state(ix-1,iy+1) + state(ix,iy+1) + state(ix+1,iy+1)
         ENDDO
-    !$omp end simd
-        this_board%neighbor_counts(nx,iy) =                                     &
-            state(nx-1,iy-1) + state(nx,iy-1) + state(1,iy-1)                   &
-          + state(nx-1,iy)                    + state(1,iy)                     &
-          + state(nx-1,iy+1) + state(nx,iy+1) + state(1,iy+1)
       ENDDO
-  !$omp end do nowait
-  !$omp single
-      this_board%neighbor_counts(1,ny) =                                        &
-            state(nx,ny-1) + state(1,ny-1) + state(2,ny-1)                      &
-          + state(nx,ny)                   + state(2,ny)                        &
-          + state(nx,1)    + state(1,1)    + state(2,1)
-    !$omp simd
-      DO ix = 2, nx-1
-        this_board%neighbor_counts(ix, ny) =                                    &
-            state(ix-1,ny-1) + state(ix,ny-1) + state(ix+1,ny-1)                &
-          + state(ix-1,ny)                    + state(ix+1,ny)                  &
-          + state(ix-1,1)    + state(ix,1)    + state(ix+1,1)
-      ENDDO
-    !$omp end simd
-      this_board%neighbor_counts(nx,ny) =                                       &
-            state(nx-1,ny-1) + state(nx,ny-1) + state(1,ny-1)                   &
-          + state(nx-1,ny)                    + state(1,ny)                     &
-          + state(nx-1,1)    + state(nx,1)    + state(1,1)
-  !$omp end single nowait
-!$omp end parallel
+!$omp end parallel do
     END ASSOCIATE
 
   END SUBROUTINE accumulate_neighbors
@@ -191,17 +144,18 @@ CONTAINS
 
     INTEGER(ikind_large) :: nx, ny, ix, iy
 
-    nx = SIZE(this_board%neighbor_counts, 1)
-    ny = SIZE(this_board%neighbor_counts, 2)
+    nx = SIZE(this_board%state_board, 1)
+    ny = SIZE(this_board%state_board, 2)
 
 !$omp parallel do collapse(2) shared(this_board)
-    DO iy = 1, ny
-      DO ix = 1, nx
+    DO iy = 2, ny-1
+      DO ix = 2, nx-1
         this_board%state_board(ix,iy) = new_state(                              &
-          this_board%neighbor_counts(ix,iy), this_board%state_board(ix,iy))
+          this_board%neighbor_counts(ix-1,iy-1), this_board%state_board(ix,iy))
       ENDDO
     ENDDO
 !$omp end parallel do
+    CALL this_board%update_halo()
 
   END SUBROUTINE update_state
 
@@ -226,14 +180,55 @@ CONTAINS
 
   END FUNCTION new_state
 
+  SUBROUTINE update_halo(this_board)
+
+    CLASS(game_board_type), INTENT(INOUT) :: this_board
+
+    INTEGER(ikind_large) :: nx, ny
+
+    nx = SIZE(this_board%state_board, 1)
+    ny = SIZE(this_board%state_board, 2)
+
+!$omp parallel shared(this_board)
+  !$omp single
+    this_board%state_board(1,1) = this_board%state_board(nx-1,ny-1)
+  !$omp end single nowait
+  !$omp single
+    this_board%state_board(2:nx-1,1) = this_board%state_board(2:nx-1,ny-1)
+  !$omp end single nowait
+  !$omp single
+    this_board%state_board(nx,1) = this_board%state_board(2,ny-1)
+  !$omp end single nowait
+  !$omp single
+    this_board%state_board(1,2:ny-1) = this_board%state_board(nx-1,2:ny-1)
+  !$omp end single nowait
+  !$omp single
+    this_board%state_board(nx,2:ny-1) = this_board%state_board(2,2:ny-1)
+  !$omp end single nowait
+  !$omp single
+    this_board%state_board(1,ny) = this_board%state_board(nx-1,2)
+  !$omp end single nowait
+  !$omp single
+    this_board%state_board(2:nx-1,ny) = this_board%state_board(2:nx-1,2)
+  !$omp end single nowait
+  !$omp single
+    this_board%state_board(nx,ny) = this_board%state_board(2,2)
+  !$omp end single nowait
+!$omp end parallel
+
+  END SUBROUTINE update_halo
+
   SUBROUTINE print_state(this_board)
 
     CLASS(game_board_type), INTENT(IN) :: this_board
 
-    INTEGER(ikind_large) :: row
+    INTEGER(ikind_large) :: nx, ny, row
 
-    DO row = 1, SIZE(this_board%state_board, 2)
-      WRITE(*,*) this_board%state_board(:,row)
+    nx = SIZE(this_board%state_board, 1)
+    ny = SIZE(this_board%state_board, 2)
+
+    DO row = 2, ny-1
+      WRITE(*,*) this_board%state_board(2:nx-1,row)
     ENDDO
 
   END SUBROUTINE print_state
