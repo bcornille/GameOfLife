@@ -3,6 +3,8 @@ MODULE game_board_mod
   USE kind_mod
 
   IMPLICIT NONE
+  PRIVATE
+  PUBLIC :: game_board_type
 
   TYPE game_board_type
     PRIVATE
@@ -20,22 +22,76 @@ CONTAINS
 
   SUBROUTINE initialize(this_board)
 
+    USE input_mod, ONLY: read_input, cell_pattern, sizex, sizey
+
     CLASS(game_board_type), INTENT(OUT) :: this_board
 
-    INTEGER(ikind_large), PARAMETER :: sizex = 10000, sizey = 10000
     INTEGER(ikind_large) :: ix, iy
     REAL(rkind), DIMENSION(:,:), ALLOCATABLE :: cell_activity
 
-    ALLOCATE(this_board%state_board(sizex,sizey),                               &
-      this_board%neighbor_counts(sizex,sizey), cell_activity(sizex,sizey))
+    CALL read_input()
+    ALLOCATE(this_board%state_board(sizex,sizey),                           &
+          this_board%neighbor_counts(sizex,sizey))
+    this_board%state_board = 0
+    SELECT CASE(cell_pattern)
+      CASE('block')
+        IF((sizex < 3) .OR. (sizey < 3)) THEN
+          STOP "Grid size too small for cell pattern."
+        ENDIF
+        this_board%state_board(1:3,1:3) = RESHAPE(                              &
+          [[0, 0, 0],                                                           &
+           [0, 1, 1],                                                           &
+           [0, 1, 1]], [3,3])
+      CASE('blinker')
+        IF((sizex < 4) .OR. (sizey < 4)) THEN
+          STOP "Grid size too small for cell pattern."
+        ENDIF
+        this_board%state_board(1:4,1:4) = RESHAPE(                              &
+          [[0, 0, 0, 0],                                                        &
+           [0, 0, 1, 0],                                                        &
+           [0, 0, 1, 0],                                                        &
+           [0, 0, 1, 0]], [4,4])
+      CASE('glider')
+        IF((sizex < 5) .OR. (sizey < 5)) THEN
+          STOP "Grid size too small for cell pattern."
+        ENDIF
+        this_board%state_board(1:4,1:4) = RESHAPE(                              &
+          [[0, 0, 0, 0],                                                        &
+           [0, 0, 1, 0],                                                        &
+           [0, 0, 0, 1],                                                        &
+           [0, 1, 1, 1]], [4,4])
+      CASE('R-pentomino')
+        IF((sizex < 5) .OR. (sizey < 5)) THEN
+          STOP "Grid size too small for cell pattern."
+        ENDIF
+        this_board%state_board(1:4,1:4) = RESHAPE(                              &
+          [[0, 0, 0, 0],                                                        &
+           [0, 0, 1, 1],                                                        &
+           [0, 1, 1, 0],                                                        &
+           [0, 0, 1, 0]], [4,4])
+
+      CASE('die-hard')
+        IF((sizex < 10) .OR. (sizey < 5)) THEN
+          STOP "Grid size too small for cell pattern."
+        ENDIF
+        this_board%state_board(1:9,1:4) = RESHAPE(                              &
+          [[0, 0, 0, 0, 0, 0, 0, 0, 0],                                                        &
+           [0, 0, 0, 0, 0, 0, 0, 1, 0],                                                        &
+           [0, 1, 1, 0, 0, 0, 0, 0, 0],                                                        &
+           [0, 0, 1, 0, 0, 0, 1, 1, 1]], [9,4])
+      CASE('random')
+        ALLOCATE(cell_activity(sizex,sizey))
 !$omp parallel do collapse(2) shared(this_board, cell_activity)
-    DO iy = 1, sizey
-      DO ix = 1, sizex
-        CALL RANDOM_NUMBER(cell_activity(ix,iy))
-        this_board%state_board(ix,iy) = NINT(cell_activity(ix,iy))
-      ENDDO
-    ENDDO
+        DO iy = 1, sizey
+          DO ix = 1, sizex
+            CALL RANDOM_NUMBER(cell_activity(ix,iy))
+            this_board%state_board(ix,iy) = NINT(cell_activity(ix,iy))
+          ENDDO
+        ENDDO
 !$omp end parallel do
+      CASE DEFAULT
+        STOP "Cell pattern not recognized."
+    END SELECT
 
   END SUBROUTINE initialize
 
@@ -66,55 +122,66 @@ CONTAINS
 
     nx = SIZE(this_board%neighbor_counts, 1)
     ny = SIZE(this_board%neighbor_counts, 2)
+    ASSOCIATE (state => this_board%state_board)
 !$omp parallel shared(this_board)
   !$omp single
-    this_board%neighbor_counts(1,1) = this_board%state_board(nx,1)              &
-      + this_board%state_board(2,1) + this_board%state_board(1,ny)              &
-      + this_board%state_board(1,2)
-    !$omp simd
-    DO ix = 2, nx-1
-      this_board%neighbor_counts(ix, 1) = this_board%state_board(ix-1,1)        &
-      + this_board%state_board(ix+1, 1) + this_board%state_board(ix,ny)         &
-      + this_board%state_board(ix,2)
-    ENDDO
-    !$omp end simd
-    this_board%neighbor_counts(nx,1) = this_board%state_board(nx-1,1)           &
-      + this_board%state_board(1,1) + this_board%state_board(nx,ny)             &
-      + this_board%state_board(nx,2)
-  !$omp end single nowait
-  !$omp do
-    DO iy = 2, ny-1
-      this_board%neighbor_counts(1,iy) = this_board%state_board(nx,iy)          &
-        + this_board%state_board(2,iy) + this_board%state_board(ix,iy-1)        &
-        + this_board%state_board(ix,iy+1)
+      this_board%neighbor_counts(1,1) =                                         &
+            state(nx,ny) + state(1,ny) + state(2,ny)                            &
+          + state(nx,1)                + state(2,1)                             &
+          + state(nx,2)  + state(1,2)  + state(2,2)
     !$omp simd
       DO ix = 2, nx-1
-        this_board%neighbor_counts(ix,iy) = this_board%state_board(ix-1,iy)     &
-          + this_board%state_board(ix+1,iy) + this_board%state_board(ix,iy-1)   &
-          + this_board%state_board(ix,iy+1)
+        this_board%neighbor_counts(ix, 1) =                                     &
+            state(ix-1,ny) + state(ix,ny) + state(ix+1,ny)                      &
+          + state(ix-1,1)                 + state(ix+1,1)                       &
+          + state(ix-1,2)  + state(ix,2)  + state(ix+1,2)
       ENDDO
     !$omp end simd
-      this_board%neighbor_counts(nx,iy) = this_board%state_board(nx-1,iy)       &
-        + this_board%state_board(1,iy) + this_board%state_board(ix,iy-1)        &
-        + this_board%state_board(ix,iy+1)
-    ENDDO
+      this_board%neighbor_counts(nx,1) =                                        &
+            state(nx-1,ny) + state(nx,ny) + state(1,ny)                         &
+          + state(nx-1,1)                 + state(1,1)                          &
+          + state(nx-1,2)  + state(nx,2)  + state(1,2)
+  !$omp end single nowait
+  !$omp do
+      DO iy = 2, ny-1
+        this_board%neighbor_counts(1,iy) =                                      &
+            state(nx,iy-1) + state(1,iy-1) + state(2,iy-1)                      &
+          + state(nx,iy)                   + state(2,iy)                        &
+          + state(nx,iy+1) + state(1,iy+1) + state(2,iy+1)
+    !$omp simd
+        DO ix = 2, nx-1
+          this_board%neighbor_counts(ix,iy) =                                   &
+            state(ix-1,iy-1) + state(ix,iy-1) + state(ix+1,iy-1)                &
+          + state(ix-1,iy)                    + state(ix+1,iy)                  &
+          + state(ix-1,iy+1) + state(ix,iy+1) + state(ix+1,iy+1)
+        ENDDO
+    !$omp end simd
+        this_board%neighbor_counts(nx,iy) =                                     &
+            state(nx-1,iy-1) + state(nx,iy-1) + state(1,iy-1)                   &
+          + state(nx-1,iy)                    + state(1,iy)                     &
+          + state(nx-1,iy+1) + state(nx,iy+1) + state(1,iy+1)
+      ENDDO
   !$omp end do nowait
   !$omp single
-    this_board%neighbor_counts(1,ny) = this_board%state_board(nx,ny)            &
-      + this_board%state_board(2,ny) + this_board%state_board(1,ny-1)           &
-      + this_board%state_board(1,1)
+      this_board%neighbor_counts(1,ny) =                                        &
+            state(nx,ny-1) + state(1,ny-1) + state(2,ny-1)                      &
+          + state(nx,ny)                   + state(2,ny)                        &
+          + state(nx,1)    + state(1,1)    + state(2,1)
     !$omp simd
-    DO ix = 2, nx-1
-      this_board%neighbor_counts(ix, ny) = this_board%state_board(ix-1,ny)      &
-        + this_board%state_board(ix+1, ny) + this_board%state_board(ix,ny-1)    &
-        + this_board%state_board(ix,1)
-    ENDDO
+      DO ix = 2, nx-1
+        this_board%neighbor_counts(ix, ny) =                                    &
+            state(ix-1,ny-1) + state(ix,ny-1) + state(ix+1,ny-1)                &
+          + state(ix-1,ny)                    + state(ix+1,ny)                  &
+          + state(ix-1,1)    + state(ix,1)    + state(ix+1,1)
+      ENDDO
     !$omp end simd
-    this_board%neighbor_counts(nx,ny) = this_board%state_board(nx-1,ny)         &
-      + this_board%state_board(1,ny) + this_board%state_board(nx,ny-1)          &
-      + this_board%state_board(nx,1)
+      this_board%neighbor_counts(nx,ny) =                                       &
+            state(nx-1,ny-1) + state(nx,ny-1) + state(1,ny-1)                   &
+          + state(nx-1,ny)                    + state(1,ny)                     &
+          + state(nx-1,1)    + state(nx,1)    + state(1,1)
   !$omp end single nowait
 !$omp end parallel
+    END ASSOCIATE
 
   END SUBROUTINE accumulate_neighbors
 
@@ -144,7 +211,7 @@ CONTAINS
     INTEGER(ikind), INTENT(IN) :: current_state
 
     IF(current_state /= 0) THEN
-      IF((neighbor_count == 2) .or. (neighbor_count == 3)) THEN
+      IF((neighbor_count == 2) .OR. (neighbor_count == 3)) THEN
         new_state = 1
       ELSE
         new_state = 0

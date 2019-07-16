@@ -1,11 +1,13 @@
 PROGRAM game_of_life
 
+  USE kind_mod
+  USE input_mod, ONLY: nsteps
   USE game_board_mod
 
   IMPLICIT NONE
 
   TYPE(game_board_type) :: game_board
-  INTEGER(ikind_large) :: population, nsteps = 50, step
+  INTEGER(ikind_large) :: population, step
 
   !Start by initializing the game board.
   CALL game_board%initialize()

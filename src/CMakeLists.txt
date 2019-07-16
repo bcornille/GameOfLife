@@ -1,6 +1,7 @@
 set(GOL_SOURCES
 	GameOfLife.F90
 	GameBoard.F90
+	input.F90
 	kind.F90
 )
 
