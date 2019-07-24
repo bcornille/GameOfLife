@@ -1,6 +1,7 @@
 MODULE game_board_mod
 
   USE kind_mod
+  ! USE omp_lib
 #ifdef USE_MPI
   USE mpi_f08
 #endif
@@ -16,7 +17,7 @@ MODULE game_board_mod
     INTEGER :: northwest, north, northeast, west,                               &
       east, southwest, south, southeast
     TYPE(MPI_Comm) :: comm
-    TYPE(MPI_Datatype) :: corner_type
+    TYPE(MPI_Datatype) :: ikind_type
   CONTAINS
     PROCEDURE, PASS(this_grid) :: setup_comm
   END TYPE mpi_grid_type
@@ -48,6 +49,7 @@ CONTAINS
     CLASS(game_board_type), INTENT(OUT) :: this_board
 
     INTEGER :: ierror
+
     INTEGER(ikind_large) :: ix, iy
     REAL(rkind), DIMENSION(:,:), ALLOCATABLE :: cell_activity
 
@@ -67,7 +69,7 @@ CONTAINS
 #ifdef USE_MPI
           CALL MPI_Finalize()
 #endif
-          STOP "Grid size too small for cell pattern "//TRIM(cell_pattern)//"."
+          STOP "Grid size too small for cell pattern."
         ENDIF
         this_board%state_board(1+offsetx:3+offsetx,1+offsety:3+offsety) =       &
         RESHAPE([[0, 0, 0],                                                     &
@@ -78,7 +80,7 @@ CONTAINS
 #ifdef USE_MPI
           CALL MPI_Finalize()
 #endif
-          STOP "Grid size too small for cell pattern "//TRIM(cell_pattern)//"."
+          STOP "Grid size too small for cell pattern."
         ENDIF
         this_board%state_board(1+offsetx:4+offsetx,1+offsety:4+offsety) =       &
         RESHAPE([[0, 0, 0, 0],                                                  &
@@ -90,7 +92,7 @@ CONTAINS
 #ifdef USE_MPI
           CALL MPI_Finalize()
 #endif
-          STOP "Grid size too small for cell pattern "//TRIM(cell_pattern)//"."
+          STOP "Grid size too small for cell pattern."
         ENDIF
         this_board%state_board(1+offsetx:4+offsetx,1+offsety:4+offsety) =       &
         RESHAPE([[0, 0, 0, 0],                                                  &
@@ -102,7 +104,7 @@ CONTAINS
 #ifdef USE_MPI
           CALL MPI_Finalize()
 #endif
-          STOP "Grid size too small for cell pattern "//TRIM(cell_pattern)//"."
+          STOP "Grid size too small for cell pattern."
         ENDIF
         this_board%state_board(1+offsetx:4+offsetx,1+offsety:4+offsety) =       &
         RESHAPE([[0, 0, 0, 0],                                                  &
@@ -115,7 +117,7 @@ CONTAINS
 #ifdef USE_MPI
           CALL MPI_Finalize()
 #endif
-          STOP "Grid size too small for cell pattern "//TRIM(cell_pattern)//"."
+          STOP "Grid size too small for cell pattern."
         ENDIF
         this_board%state_board(1+offsetx:9+offsetx,1+offsety:4+offsety) =       &
         RESHAPE([[0, 0, 0, 0, 0, 0, 0, 0, 0],                                   &
@@ -136,35 +138,35 @@ CONTAINS
 #ifdef USE_MPI
         CALL MPI_Finalize()
 #endif
-        STOP "Cell pattern "//TRIM(cell_pattern)//" not recognized."
+        STOP "Cell pattern not recognized."
     END SELECT
 #ifdef USE_MPI
     ENDIF
     ASSOCIATE(state => this_board%state_board, grid => this_board%mpi_grid)
 !$omp parallel sections if(grid%provided == MPI_THREAD_MULTIPLE) shared(this_board)
  !$omp section
-      CALL MPI_ISend(state(2,2), 1, grid%corner_type, grid%northwest, 0,        &
+      CALL MPI_ISend(state(2,2), 1, grid%ikind_type, grid%northwest, 0,         &
         grid%comm, grid%send_requests(1), ierror)
  !$omp section
-      CALL MPI_ISend(state(2:sizex+1,2), sizex, grid%corner_type, grid%north,  &
+      CALL MPI_ISend(state(2:sizex+1,2), sizex, grid%ikind_type, grid%north,    &
         1, grid%comm, grid%send_requests(2), ierror)
  !$omp section
-      CALL MPI_ISend(state(sizex+1,2), 1, grid%corner_type, grid%northeast, 2,  &
+      CALL MPI_ISend(state(sizex+1,2), 1, grid%ikind_type, grid%northeast, 2,   &
         grid%comm, grid%send_requests(3), ierror)
  !$omp section
-      CALL MPI_ISend(state(2,2:sizey+1), sizey, grid%corner_type, grid%west, 3,  &
+      CALL MPI_ISend(state(2,2:sizey+1), sizey, grid%ikind_type, grid%west, 3,  &
         grid%comm, grid%send_requests(4), ierror)
  !$omp section
-      CALL MPI_ISend(state(sizex+1,2:sizey+1), sizey, grid%corner_type,          &
+      CALL MPI_ISend(state(sizex+1,2:sizey+1), sizey, grid%ikind_type,          &
         grid%east, 4, grid%comm, grid%send_requests(5), ierror)
  !$omp section
-      CALL MPI_ISend(state(2,sizey+1), 1, grid%corner_type, grid%southwest, 5,  &
+      CALL MPI_ISend(state(2,sizey+1), 1, grid%ikind_type, grid%southwest, 5,   &
         grid%comm, grid%send_requests(6), ierror)
  !$omp section
-      CALL MPI_ISend(state(2:sizex+1,sizey+1), sizex, grid%corner_type,        &
+      CALL MPI_ISend(state(2:sizex+1,sizey+1), sizex, grid%ikind_type,          &
         grid%south, 6, grid%comm, grid%send_requests(7), ierror)
  !$omp section
-      CALL MPI_ISend(state(sizex+1,sizey+1), 1, grid%corner_type,               &
+      CALL MPI_ISend(state(sizex+1,sizey+1), 1, grid%ikind_type,                &
         grid%southeast, 7, grid%comm, grid%send_requests(8), ierror)
 !$omp end parallel sections
     END ASSOCIATE
@@ -240,28 +242,28 @@ CONTAINS
     ASSOCIATE(state => this_board%state_board, grid => this_board%mpi_grid)
 !$omp parallel sections if(grid%provided == MPI_THREAD_MULTIPLE) shared(this_board)
  !$omp section
-      CALL MPI_ISend(state(2,2), 1, grid%corner_type, grid%northwest, 0,        &
+      CALL MPI_ISend(state(2,2), 1, grid%ikind_type, grid%northwest, 0,         &
         grid%comm, grid%send_requests(1), ierror)
  !$omp section
-      CALL MPI_ISend(state(2:nx-1,2), nx-2, grid%corner_type, grid%north, 1,  &
+      CALL MPI_ISend(state(2:nx-1,2), nx-2, grid%ikind_type, grid%north, 1,     &
         grid%comm, grid%send_requests(2), ierror)
  !$omp section
-      CALL MPI_ISend(state(nx-1,2), 1, grid%corner_type, grid%northeast, 2,     &
+      CALL MPI_ISend(state(nx-1,2), 1, grid%ikind_type, grid%northeast, 2,      &
         grid%comm, grid%send_requests(3), ierror)
  !$omp section
-      CALL MPI_ISend(state(2,2:ny-1), ny-2, grid%corner_type, grid%west, 3,     &
+      CALL MPI_ISend(state(2,2:ny-1), ny-2, grid%ikind_type, grid%west, 3,      &
         grid%comm, grid%send_requests(4), ierror)
  !$omp section
-      CALL MPI_ISend(state(nx-1,2:ny-1), ny-2, grid%corner_type, grid%east, 4,  &
+      CALL MPI_ISend(state(nx-1,2:ny-1), ny-2, grid%ikind_type, grid%east, 4,   &
         grid%comm, grid%send_requests(5), ierror)
  !$omp section
-      CALL MPI_ISend(state(2,ny-1), 1, grid%corner_type, grid%southwest, 5,     &
+      CALL MPI_ISend(state(2,ny-1), 1, grid%ikind_type, grid%southwest, 5,      &
         grid%comm, grid%send_requests(6), ierror)
  !$omp section
-      CALL MPI_ISend(state(2:nx-1,ny-1), nx-2, grid%corner_type, grid%south,  &
+      CALL MPI_ISend(state(2:nx-1,ny-1), nx-2, grid%ikind_type, grid%south,     &
         6, grid%comm, grid%send_requests(7), ierror)
  !$omp section
-      CALL MPI_ISend(state(nx-1,ny-1), 1, grid%corner_type, grid%southeast, 7,  &
+      CALL MPI_ISend(state(nx-1,ny-1), 1, grid%ikind_type, grid%southeast, 7,   &
         grid%comm, grid%send_requests(8), ierror)
 !$omp end parallel sections
     END ASSOCIATE
@@ -304,59 +306,59 @@ CONTAINS
 #ifndef USE_MPI
     SELECT CASE(boundary)
       CASE ('periodic')
-!!$omp parallel sections shared(this_board)
-!  !$omp section
+!$omp parallel sections shared(this_board)
+  !$omp section
         this_board%state_board(1,1) = this_board%state_board(nx-1,ny-1)
-!  !$omp section
+  !$omp section
         this_board%state_board(2:nx-1,1) = this_board%state_board(2:nx-1,ny-1)
-!  !$omp section
+  !$omp section
         this_board%state_board(nx,1) = this_board%state_board(2,ny-1)
-!  !$omp section
+  !$omp section
         this_board%state_board(1,2:ny-1) = this_board%state_board(nx-1,2:ny-1)
-!  !$omp section
+  !$omp section
         this_board%state_board(nx,2:ny-1) = this_board%state_board(2,2:ny-1)
-!  !$omp section
+  !$omp section
         this_board%state_board(1,ny) = this_board%state_board(nx-1,2)
-!  !$omp section
+  !$omp section
         this_board%state_board(2:nx-1,ny) = this_board%state_board(2:nx-1,2)
-!  !$omp section
+  !$omp section
         this_board%state_board(nx,ny) = this_board%state_board(2,2)
-!!$omp end parallel sections
+!$omp end parallel sections
       CASE('dead')
       CASE DEFAULT
-        STOP "Boundary condition "//TRIM(boundary)//" not implemented."
+        STOP "Boundary condition not implemented."
     END SELECT
 #else
     ASSOCIATE(state => this_board%state_board, grid => this_board%mpi_grid)
 !$omp parallel sections if(grid%provided == MPI_THREAD_MULTIPLE)
  !$omp section
-      CALL MPI_IRecv(state(1,1), 1, grid%corner_type, grid%northwest, 7,         &
+      CALL MPI_IRecv(state(1,1), 1, grid%ikind_type, grid%northwest, 7,         &
         grid%comm, grid%recv_requests(1), ierror)
  !$omp section
-      CALL MPI_IRecv(state(2:nx-1,1), nx+2, grid%corner_type, grid%north, 6,   &
+      CALL MPI_IRecv(state(2:nx-1,1), nx+2, grid%ikind_type, grid%north, 6,     &
         grid%comm, grid%recv_requests(2), ierror)
  !$omp section
-      CALL MPI_IRecv(state(nx,1), 1, grid%corner_type, grid%northeast, 5,        &
+      CALL MPI_IRecv(state(nx,1), 1, grid%ikind_type, grid%northeast, 5,        &
         grid%comm, grid%recv_requests(3), ierror)
  !$omp section
-      CALL MPI_IRecv(state(1,2:ny-1), ny+2, grid%corner_type, grid%west, 4,      &
+      CALL MPI_IRecv(state(1,2:ny-1), ny+2, grid%ikind_type, grid%west, 4,      &
         grid%comm, grid%recv_requests(4), ierror)
  !$omp section
-      CALL MPI_IRecv(state(nx,2:ny-1), ny+2, grid%corner_type, grid%east, 3,     &
+      CALL MPI_IRecv(state(nx,2:ny-1), ny+2, grid%ikind_type, grid%east, 3,     &
         grid%comm, grid%recv_requests(5), ierror)
  !$omp section
-      CALL MPI_IRecv(state(1,ny), 1, grid%corner_type, grid%southwest, 2,        &
+      CALL MPI_IRecv(state(1,ny), 1, grid%ikind_type, grid%southwest, 2,        &
         grid%comm, grid%recv_requests(6), ierror)
  !$omp section
-      CALL MPI_IRecv(state(2:nx-1,ny), nx+2, grid%corner_type, grid%south, 1,  &
+      CALL MPI_IRecv(state(2:nx-1,ny), nx+2, grid%ikind_type, grid%south, 1,    &
         grid%comm, grid%recv_requests(7), ierror)
  !$omp section
-      CALL MPI_IRecv(state(nx,ny), 1, grid%corner_type, grid%southeast, 0,        &
+      CALL MPI_IRecv(state(nx,ny), 1, grid%ikind_type, grid%southeast, 0,       &
         grid%comm, grid%recv_requests(8), ierror)
  !$omp section
-      CALL MPI_Waitall(8, grid%send_requests, MPI_STATUSES_IGNORE)
+      CALL MPI_Waitall(8, grid%send_requests, grid%send_statuses)
 !$omp end parallel sections
-      CALL MPI_Waitall(8, grid%recv_requests, MPI_STATUSES_IGNORE)
+      CALL MPI_Waitall(8, grid%recv_requests, grid%recv_statuses)
     END ASSOCIATE
 #endif
 
@@ -401,8 +403,8 @@ CONTAINS
     INTEGER(ikind_large) :: remainder
 
     CALL MPI_Query_thread(this_grid%provided, ierror)
-    CALL MPI_Type_create_f90_integer(1, this_grid%corner_type, ierror)
-    CALL MPI_Type_commit(this_grid%corner_type, ierror)
+    CALL MPI_Type_create_f90_integer(size_ikind, this_grid%ikind_type, ierror)
+    CALL MPI_Type_commit(this_grid%ikind_type, ierror)
     IF(TRIM(boundary) == 'periodic') THEN
       periodic = .TRUE.
     ENDIF
